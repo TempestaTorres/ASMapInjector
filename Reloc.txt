@@ -1,0 +1,84 @@
+==============================================================================
+;                     Relocation table
+
+From PE Header
++A0  (160) 	DWORD 	BaseRelocationTable VA
+
+==============================================================================
+Base relocations are used to adjust memory addresses in a PE file when 
+it is loaded into memory at a different base address than the one it was built for
+==============================================================================
+DESCRIPTION:
+
+When a program is compiled, the compiler assumes that the executable is going 
+to be loaded at a certain base address, that address is saved in IMAGE_OPTIONAL_HEADER.
+ImageBase, some addresses get calculated then hardcoded within the executable based on the base address.
+However for a variety of reasons, it’s not very likely that the executable 
+is going to get its desired base address, it will get loaded in another base address 
+and that will make all of the hardcoded addresses invalid.
+A list of all hardcoded values that will need fixing if the image is loaded 
+at a different base address is saved in a special table 
+called the Relocation Table (a Data Directory within the .reloc section). 
+The process of relocating (done by the loader) is what fixes these values.
+
+
+
+EXAMPLE:
+Let’s take an example, the following code defines an int variable and a pointer to that variable:
+
+int  test = 2;       -> 1100
+int* testPtr = &test;
+
+During compile-time, the compiler will assume a base address, 
+let’s say it assumes a base address of 0x1000, it decides that 
+viriable test will be located at an offset of 0x100 and based on that it gives 
+testPtr a value of 0x1100.
+Later on, a user runs the program and the image gets loaded into memory.
+It gets a base address of 0x2000, this means that the hardcoded value of 
+testPtr will be invalid, the loader fixes that value by adding the difference 
+between the assumed base address and the actual base address, in this case 
+it’s a difference of 0x1000 (0x2000 - 0x1000), so the new value of testPtr will be 
+
+       0x2100 (0x1100 + 0x1000) which is the correct new address of test.
+
+===============================================================================
+Relocation data are stored in a data directory. This directory can be access through the use of
+
+                       IMAGE_DIRECTORY_ENTRY_BASERELOC
+                       
+The relocation data directory is an array of relocation blocks which are declared as
+
+                        IMAGE_BASE_RELOCATION structures.
+                         
+which contains the virtual address of the block and the size of the block
+
+IMAGE_BASE_RELOCATION
+
+    VirtualAddress     DWORD +0   pointer to The table of relocation entries
+    SizeOfBlock        DWORD +4
+
+===============================================================================
+The relocation blocks do not all have the same size, in fact 
+a number of 16bits relocation descriptors
+are set in each relocation block. The SizeOfBlock attribute of the structure 
+gives the total size of the relocation block.
+Here is a simple memory layout of a relocation data directory:
+===============================================================================
+Relocation Block 1 | Relocation Block 2
+
+VAddr|SizeofBlock|desc1|desc2|desc3| VAddr|SizeofBlock|desc1|...
+DWORD|  DWORD    |WORD |WORD |WORD|
+===============================================================================
+
+The VirtualAddress attribute is the base address of all the places which must be fixed in the code. Each
+16bit descriptor refers to a fixed address somewhere in the code that should be changed as well as the
+method that should be used by the system loader to modify it. The PE format describes about 10
+different transformations that can be used to fix an address reference. These transformations are
+described through the top 4 bits of each descriptor. The transformation methods are ignored in the PE
+injection technique. The bottom 12bits are used to describe the offset into the VirtualAddress of the
+containing relocation block.
+==============================================================================
+This means that "relocationBlock.VirtualAddress + Bottom 12bit of descriptor" points to the address
+we need to fix in the code. So basically, we must go through all relocation descriptors in all relocation
+blocks, and for each descriptor, modify the pointed address to adapt it to the new base address in the
+distant process
