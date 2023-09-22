@@ -1,5 +1,5 @@
 # ASMapInjector
-Uses basic concept of manual dll injection technic.
+Uses basic concept of manual dll injection technics.
 # How to Use
 Run from cmd>mapinjector.exe <Target.exe> <Test.dll>
 The target process has to be running!
